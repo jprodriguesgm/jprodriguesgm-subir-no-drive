@@ -141,7 +141,7 @@ jobs:
           cp tools/fake_rclone.py "$T/bin/rclone"; chmod +x "$T/bin/rclone"
           printf 'export PATH="%s:$PATH"\n' "$T/bin" > "$T/sup/env.sh"
           printf 'drive\nGravações IEC\nconta@exemplo.edu\n' > "$T/sup/config.txt"
-          VOZ=$(say -v '?' | grep -iE "pt[_-]BR" | head -1 | awk '{print $1}')
+          VOZ=$(say -v '?' | grep -iE " pt[_-]BR" | head -1 | sed -E 's/ +pt[_-]BR.*//')
           echo "voz: $VOZ"
           TXT="Olá, pessoal. Então, nessa aula a gente vai ver o conceito de gestão de projetos. Errei, vou voltar. Nessa aula a gente vai ver o conceito de gestão de riscos e a matriz de riscos."
           say -v "${VOZ:-Luciana}" -o "$T/fala.aiff" "$TXT $TXT $TXT"

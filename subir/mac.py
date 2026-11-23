@@ -64,6 +64,7 @@ class DropWebView(WKWebView):
     """WebKit que recebe arquivos arrastados do Finder (e não tenta abrir o vídeo dentro da janela)."""
     shell = None
 
+    @objc.python_method
     def _paths(self, info):
         pb = info.draggingPasteboard()
         urls = pb.readObjectsForClasses_options_([NSURL], {NSPasteboardURLReadingFileURLsOnlyKey: True}) or []
