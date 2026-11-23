@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+bin/
+models/
+build/
+dist/
+*.mp4
+*.mov
+wheels11/
+fotos/

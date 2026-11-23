@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Subir no Drive</title>
+<style>
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;-webkit-user-select:none;user-select:none;cursor:default}
+body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",system-ui,sans-serif;font-size:13px;color:#e9e9ec}
+*{box-sizing:border-box}
+.w{position:absolute;inset:20px;background:#2b2c2f;border:1px solid rgba(255,255,255,.55);border-radius:16px;
+  box-shadow:0 10px 36px rgba(120,180,255,.28),0 0 0 4px rgba(150,200,255,.10);overflow:hidden;display:flex;flex-direction:column}
+.w.drop{border-color:#8fc0ff;box-shadow:0 10px 36px rgba(120,180,255,.5),0 0 0 4px rgba(150,200,255,.35)}
+.tb{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.dots{display:flex;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%;border:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:transparent}
+.dots:hover .dot{color:rgba(0,0,0,.6)}
+.dot svg{width:8px;height:8px}
+.ttl{flex:1;text-align:center;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-flex;align-items:center;gap:5px;background:#3a3b3f;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:3px 10px;font-size:12px;color:#c9cbd1;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:#36373b;border:1px solid rgba(255,255,255,.14);border-radius:12px}
+.row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px}
+.list .row:hover{background:rgba(255,255,255,.04)}
+.row.sel{background:rgba(120,180,255,.18);outline:1px solid rgba(150,200,255,.45)}
+.btn{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:0 14px;min-height:34px;font:inherit;font-size:13px;
+  border:1px solid rgba(255,255,255,.22);background:#3a3b3f;color:#e9e9ec;white-space:nowrap}
+.btn:hover{background:#43444a}
+.btn:active{background:#4a4b51}
+.btn:disabled{opacity:.45}
+.btn.pri{background:#2f74d0;border-color:rgba(255,255,255,.6);color:#fff}
+.btn.pri:hover{background:#3880dc}
+.btn.sm{min-height:28px;padding:0 9px;font-size:12px}
+.mut{color:#a4a6ad;font-size:12px}
+.lbl{color:#c9cbd1;font-size:12px;width:78px;flex-shrink:0}
+.track{flex:1;height:6px;border-radius:99px;background:#4a4b50;overflow:hidden}
+.fill{height:6px;border-radius:99px;transition:width .4s}
+.body{flex:1;padding:16px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.foot{display:flex;align-items:center;gap:8px;padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.inp{flex:1;min-width:0;min-height:34px;background:#36373b;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:0 12px;color:#e9e9ec;font:inherit;font-size:13px;-webkit-user-select:text;user-select:text}
+.inp:focus{outline:none;border-color:rgba(150,200,255,.7)}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+.scroll{overflow-y:auto;min-height:0}
+.scroll::-webkit-scrollbar{width:8px}.scroll::-webkit-scrollbar-thumb{background:#4a4b50;border-radius:8px}
+.crumbs{display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap}
+.crumbs a{color:#c9cbd1;text-decoration:none}.crumbs a:hover{color:#fff;text-decoration:underline}
+.crumbs .cur{color:#fff;font-weight:600}
+.hide{display:none!important}
+.card{padding:14px;display:flex;flex-direction:column;gap:10px}
+.vname{display:flex;align-items:center;gap:8px;font-weight:500;min-width:0}
+.vname span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.line{display:flex;align-items:center;gap:10px;min-width:0}
+.line .txt{min-width:0}
+.sub{padding-left:88px}
+.overlay{position:absolute;inset:0;background:rgba(20,20,22,.62);display:flex;align-items:center;justify-content:center;padding:32px;z-index:10}
+.dialog{background:#333438;border-color:rgba(255,255,255,.5);box-shadow:0 10px 36px rgba(120,180,255,.30);padding:20px;display:flex;flex-direction:column;gap:12px;max-width:440px;width:100%}
+.dialog p{margin:0;line-height:1.5}
+.toast{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);background:#1f2023;border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:9px 14px;max-width:460px;z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.4);line-height:1.4}
+.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#8fc0ff;border-radius:50%;animation:sp 0.8s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.field{display:flex;flex-direction:column;gap:6px}
+select.inp{-webkit-appearance:menulist;appearance:auto}
+code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#c9cbd1}
+.drag{position:absolute;top:0;left:90px;right:0;height:46px;-webkit-app-region:drag}
+</style>
+</head>
+<body>
+<div class="w" id="win">
+  <div class="tb">
+    <div class="dots">
+      <button class="dot" style="background:#ff5f57" aria-label="Fechar" onclick="askClose()" id="dClose"></button>
+      <button class="dot" style="background:#febc2e" aria-label="Minimizar" onclick="call('minimize')" id="dMin"></button>
+      <span class="dot" style="background:#4a4b50" aria-hidden="true"></span>
+    </div>
+    <span class="ttl" id="title">Subir no Drive</span>
+    <span class="pill" id="acct"></span>
+  </div>
+
+  <!-- ===================== primeira vez neste Mac ===================== -->
+  <section id="vSetup" class="hide" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="body scroll" style="gap:18px">
+      <div style="display:flex;gap:10px;align-items:flex-start"><span id="icGear"></span>
+        <div style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:600;font-size:15px" id="setupTitle">Primeira vez neste Mac</span>
+        <span class="mut">Confira os 3 itens e clique em “Testar e salvar”. Isso é feito uma vez só.</span></div></div>
+      <div class="field">
+        <label for="sRclone" style="font-weight:500">1. Programa rclone</label>
+        <div style="display:flex;gap:8px"><input class="inp" id="sRclone" list="sRcloneList" spellcheck="false"><datalist id="sRcloneList"></datalist><button class="btn" onclick="pickRclone()">Escolher…</button></div>
+        <span class="tag" id="sRcloneSt"></span>
+      </div>
+      <div class="field">
+        <label for="sRemote" style="font-weight:500">2. Conexão com o Google Drive</label>
+        <select class="inp" id="sRemote"></select>
+        <span class="tag" id="sRemoteSt"></span>
+      </div>
+      <div class="field">
+        <label for="sRoot" style="font-weight:500">3. Pasta inicial no Drive</label>
+        <input class="inp" id="sRoot" placeholder="Gravações IEC (vazio = Meu Drive)" spellcheck="false">
+        <span class="tag" id="sRootSt"></span>
+      </div>
+      <div id="sProblem" class="box hide" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-color:rgba(240,182,74,.5)">
+        <div style="display:flex;gap:10px;align-items:flex-start"><span id="icSWarn"></span><span id="sProblemTxt" style="line-height:1.45"></span></div>
+        <div id="sAction" class="hide" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+    <div class="foot"><span class="mut" id="sBusy"></span><span style="flex:1"></span>
+      <button class="btn" id="sCancel" onclick="setupCancel()">Cancelar</button>
+      <button class="btn" onclick="setupCheck()">Conferir</button>
+      <button class="btn pri" id="sSave" onclick="setupSave()">Testar e salvar</button></div>
+  </section>
+
+  <!-- ===================== escolher a pasta ===================== -->
+  <section id="vPick" class="hide" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="body">
+      <div class="box" id="filesBox" style="padding:10px 12px;display:flex;align-items:center;gap:10px"></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label class="mut" for="link">Colar link da pasta do Drive</label>
+        <div style="display:flex;gap:8px"><input id="link" class="inp" placeholder="drive.google.com/drive/folders/…" spellcheck="false" autocomplete="off"><button class="btn" id="bLink" onclick="goLink()">Ir</button></div>
+      </div>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="box scroll list" id="list" style="padding:6px;flex:1"></div>
+      <div class="box" id="trCard" style="padding:12px;display:flex;gap:10px;align-items:flex-start"></div>
+    </div>
+    <div class="foot">
+      <button class="btn" onclick="newFolder()" id="bNew"></button>
+      <button class="btn sm" onclick="openSetup()" title="Configurar rclone e conta" aria-label="Configurar" id="bGear"></button>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="askClose()">Cancelar</button>
+      <button class="btn pri" id="bUp" onclick="upload()"></button>
+    </div>
+  </section>
+
+  <!-- ===================== enviando ===================== -->
+  <section id="vSend" class="hide" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="body">
+      <div id="sendBanner"></div>
+      <div class="scroll" id="items" style="display:flex;flex-direction:column;gap:12px;flex:1"></div>
+      <div class="mut" id="sendNote" style="display:flex;gap:8px;align-items:flex-start"></div>
+    </div>
+    <div class="foot" id="sendFoot"></div>
+  </section>
+
+  <!-- ===================== fim ===================== -->
+  <section id="vDone" class="hide" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="body" id="doneBody"></div>
+    <div class="foot" id="doneFoot"></div>
+  </section>
+
+  <div class="overlay hide" id="ov"><div class="box dialog" role="dialog" aria-labelledby="ovT">
+    <div style="display:flex;align-items:center;gap:10px"><span id="ovI"></span><span id="ovT" style="font-weight:600;font-size:15px"></span></div>
+    <div id="ovB" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div id="ovF" style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px"></div>
+  </div></div>
+  <div class="toast hide" id="toast" role="status"></div>
+</div>
+
+<script>
+'use strict';
+var BLUE='#8fc0ff',GREEN='#7fd19b',AMBER='#f0b64a',RED='#ff8a80',ORANGE='#f0a050',GRAY='#a4a6ad';
+var P={
+ folder:'<path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2"/>',
+ check:'<path d="M5 12l5 5L20 7"/>',
+ ccheck:'<circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/>',
+ upload:'<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/>',
+ movie:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 4v16M16 4v16M4 8h4M4 16h4M4 12h16M16 8h4M16 16h4"/>',
+ file:'<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2"/>',
+ text:'<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2"/><path d="M9 13h6M9 17h6M9 9h1"/>',
+ alert:'<path d="M12 9v4"/><path d="M10.4 3.9L2.6 17.5A1.9 1.9 0 0 0 4.2 20.4h15.6a1.9 1.9 0 0 0 1.6-2.9L13.6 3.9a1.9 1.9 0 0 0-3.2 0"/><path d="M12 16h.01"/>',
+ x:'<circle cx="12" cy="12" r="9"/><path d="M10 10l4 4M14 10l-4 4"/>',
+ close:'<path d="M6 6l12 12M18 6L6 18"/>',
+ minus:'<path d="M5 12h14"/>',
+ left:'<path d="M5 12h14M5 12l6 6M5 12l6-6"/>',
+ chev:'<path d="M9 6l6 6-6 6"/>',
+ plus:'<path d="M12 19H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v3.5"/><path d="M16 19h6M19 16v6"/>',
+ add:'<path d="M12 5v14M5 12h14"/>',
+ ext:'<path d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/><path d="M11 13l9-9M15 4h5v5"/>',
+ gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
+ wave:'<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>',
+ link:'<path d="M9 15l6-6"/><path d="M11 6l.5-.5a4 4 0 0 1 5.7 5.7l-.5.5"/><path d="M13 18l-.5.5a4 4 0 0 1-5.7-5.7l.5-.5"/>',
+ refresh:'<path d="M20 11A8 8 0 0 0 5.3 7M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.7 4M20 20v-4h-4"/>'
+};
+function ic(n,c,s){s=s||16;c=c||'currentColor';return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0">'+P[n]+'</svg>'}
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function show(v){['vSetup','vPick','vSend','vDone'].forEach(function(id){$(id).classList.toggle('hide',id!==v)});S.view=v}
+
+/* ---------------- ponte com o Python ---------------- */
+var S={view:'',cfg:null,files:[],loc:{parts:[],fid:null,base_name:''},dirs:[],sel:null,loading:false,listErr:'',
+ transcribe:true,job:null,closing:false,setup:null,setupBusy:false};
+var RID=0,WAIT={};
+function post(m){
+  var s=JSON.stringify(m);
+  if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.app){window.webkit.messageHandlers.app.postMessage(s)}
+  else{fetch('/msg',{method:'POST',body:s})}
+}
+function call(cmd,data){
+  return new Promise(function(res,rej){var rid=++RID;WAIT[rid]={res:res,rej:rej};var m=data||{};m.cmd=cmd;m.rid=rid;post(m)})
+}
+var app={recv:function(m){
+  if(typeof m==='string')m=JSON.parse(m);
+  if(m.type==='reply'){var w=WAIT[m.rid];if(!w)return;delete WAIT[m.rid];if(m.ok)w.res(m.data);else w.rej(m);return}
+  if(m.type==='files'){S.files=m.files;if(m.job!==undefined)S.job=m.job;if(!S.job||!S.job.busy){if(S.view==='vDone'||S.view==='vSend'){goPick()}else renderFiles()}return}
+  if(m.type==='job'){S.job=m.job;renderJob();return}
+  if(m.type==='toast'){toast(m.text);return}
+  if(m.type==='ask_close'){askClose();return}
+  if(m.type==='drag'){$('win').classList.toggle('drop',!!m.on);return}
+}};
+window.app=app;
+if(!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.app)){
+  (function poll(){fetch('/events').then(function(r){return r.json()}).then(function(list){list.forEach(app.recv);poll()}).catch(function(){setTimeout(poll,500)})})();
+}
+var tT=null;
+function toast(t){var e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(tT);tT=setTimeout(function(){e.classList.add('hide')},4500)}
+function errText(e){return (e&&e.error)||String(e)}
+
+/* ---------------- formatos ---------------- */
+function nf(x,d){return x.toFixed(d).replace('.',',')}
+function fmtB(b){if(b==null)return '';if(b>=1e9)return nf(b/1e9,1)+' GB';if(b>=1e6)return Math.round(b/1e6)+' MB';if(b>=1e3)return Math.round(b/1e3)+' KB';return b+' B'}
+function fmtT(s){if(s==null||!isFinite(s))return '';s=Math.max(1,Math.round(s));if(s<60)return s+' s';var m=Math.round(s/60);if(m<60)return m+' min';return Math.floor(m/60)+' h '+(m%60)+' min'}
+function plural(n,a,b){return n+' '+(n===1?a:b)}
+function plain(s){return String(s||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().trim()}
+function isSaida(n){var p=plain(n);return p==='saida'||p==='saidas'}
+
+/* ---------------- início ---------------- */
+function start(){
+  $('icGear').innerHTML=ic('gear',BLUE,22);$('icSWarn').innerHTML=ic('alert',AMBER,18);
+  $('bNew').innerHTML=ic('plus','#e9e9ec',15)+'Nova pasta';$('bGear').innerHTML=ic('gear','#e9e9ec',15);
+  $('dClose').innerHTML=ic('close','currentColor',8);$('dMin').innerHTML=ic('minus','currentColor',8);
+  $('link').addEventListener('keydown',function(e){if(e.key==='Enter')goLink()});
+  $('link').addEventListener('paste',function(){setTimeout(function(){if(/folders\/|[?&]id=/.test($('link').value))goLink()},30)});
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&!$('ov').classList.contains('hide')){closeOv()}
+    if(S.view==='vPick'&&document.activeElement&&document.activeElement.tagName!=='INPUT'){
+      if(e.key==='Backspace'&&S.loc.parts.length){goUp();e.preventDefault()}
+      if(e.key==='Enter'&&S.sel){openDir(S.sel);e.preventDefault()}
+    }
+  });
+  call('ready').then(init);
+}
+function init(d){
+  S.cfg=d;S.files=d.files||[];S.job=d.job;
+  $('acct').innerHTML=d.email?ic('ccheck',GREEN,13)+esc(d.email):'';$('acct').classList.toggle('hide',!d.email);
+  if(!d.configured){openSetup(true);return}
+  if(S.job&&(S.job.busy||S.job.items.length)){renderJob();return}
+  goPick(true);
+}
+
+/* ---------------- escolher a pasta ---------------- */
+function goPick(reload){
+  show('vPick');$('title').textContent='Subir no Drive';renderFiles();renderTr();
+  if(reload||!S.dirsLoaded)listDir(S.loc);else renderList();
+}
+function renderFiles(){
+  var f=S.files,b=$('filesBox');
+  if(!f.length){
+    b.style.borderStyle='dashed';
+    b.innerHTML=ic('upload',BLUE,20)+'<div style="flex:1"><div>Arraste os vídeos para esta janela</div><div class="mut">ou para o ícone do app no Dock</div></div><button class="btn" onclick="pickFiles()">Escolher vídeos…</button>';
+  }else{
+    b.style.borderStyle='solid';
+    var tot=0,known=true;f.forEach(function(x){if(x.size==null)known=false;else tot+=x.size});
+    var more=f.length>1?'e mais '+plural(f.length-1,'arquivo','arquivos')+(known?' · '+fmtB(tot)+' no total':''):(known?fmtB(tot):'pasta');
+    var names=f.map(function(x){return x.name}).join('\n');
+    b.innerHTML=ic(f[0].is_dir?'folder':(f[0].video?'movie':'file'),BLUE,20)+'<div style="flex:1;min-width:0" title="'+esc(names)+'"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f[0].name)+'</div><div class="mut">'+more+'</div></div>'+
+      '<button class="btn sm" onclick="pickFiles()" aria-label="Adicionar arquivos" title="Adicionar arquivos">'+ic('add','#e9e9ec',14)+'</button>'+
+      '<button class="btn sm" onclick="clearFiles()" aria-label="Tirar os arquivos" title="Tirar os arquivos">'+ic('close','#e9e9ec',14)+'</button>';
+  }
+  renderGo();
+}
+function pickFiles(){call('pick_files').then(function(d){S.files=d.files;renderFiles();renderTr()})}
+function clearFiles(){var p=S.files.slice();S.files=[];renderFiles();renderTr();p.forEach(function(x){call('remove_file',{path:x.path})})}
+function baseName(loc){return loc.fid?(loc.base_name||'Pasta do link'):(S.cfg.root_name||'Meu Drive')}
+function locName(loc){return loc.parts.length?loc.parts[loc.parts.length-1]:baseName(loc)}
+function child(loc,n){return {parts:loc.parts.concat([n]),fid:loc.fid,base_name:loc.base_name}}
+function parentOf(loc){if(!loc.parts.length)return null;return {parts:loc.parts.slice(0,-1),fid:loc.fid,base_name:loc.base_name}}
+function dest(){return S.sel?child(S.loc,S.sel):S.loc}
+function renderCrumbs(){
+  var c=$('crumbs'),h='<button class="btn sm" aria-label="Voltar" onclick="goUp()" '+(S.loc.parts.length?'':'disabled')+'>'+ic('left','#c9cbd1',14)+'</button>';
+  var all=[baseName(S.loc)].concat(S.loc.parts);
+  all.forEach(function(n,i){
+    if(i)h+=ic('chev','#8a8c93',12);
+    if(i===all.length-1)h+='<span class="cur">'+esc(n)+'</span>';
+    else h+='<a href="#" onclick="goDepth('+i+');return false">'+esc(n)+'</a>';
+  });
+  c.innerHTML=h;
+}
+function listDir(loc,keepSel){
+  S.loc=loc;S.loading=true;S.listErr='';if(!keepSel)S.sel=null;renderCrumbs();renderList();renderTr();renderGo();
+  var my=JSON.stringify(loc);
+  call('list',{loc:loc}).then(function(d){if(JSON.stringify(S.loc)!==my)return;S.dirs=d.dirs;S.dirsLoaded=true;S.loading=false;if(keepSel&&S.dirs.indexOf(S.sel)<0)S.sel=null;renderList();renderTr()})
+   .catch(function(e){if(JSON.stringify(S.loc)!==my)return;S.loading=false;S.dirs=[];S.listErr=errText(e);renderList();
+     if(e.kind==='escopo'||e.kind==='token'||e.kind==='config')openSetup()});
+}
+function renderList(){
+  var l=$('list');
+  if(S.loading){l.innerHTML='<div class="row mut"><span class="spin"></span>Carregando pastas…</div>';return}
+  if(S.listErr){l.innerHTML='<div class="row" style="align-items:flex-start">'+ic('alert',AMBER,16)+'<div style="display:flex;flex-direction:column;gap:8px;line-height:1.4"><span>'+esc(S.listErr)+'</span><span><button class="btn sm" onclick="listDir(S.loc)">'+ic('refresh','#e9e9ec',13)+'Tentar de novo</button></span></div></div>';return}
+  if(!S.dirs.length){l.innerHTML='<div class="row mut">'+ic('folder','#8a8c93',16)+'Esta pasta está vazia · os vídeos vão ficar aqui</div>';return}
+  l.innerHTML=S.dirs.map(function(n,i){return '<div class="row'+(n===S.sel?' sel':'')+'" data-i="'+i+'">'+ic('folder',BLUE,16)+'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(n)+'</span></div>'}).join('');
+  Array.prototype.forEach.call(l.querySelectorAll('.row'),function(r){
+    var n=S.dirs[+r.getAttribute('data-i')];
+    r.onclick=function(){S.sel=(S.sel===n?null:n);renderList();renderTr()};
+    r.ondblclick=function(){openDir(n)};
+  });
+}
+function openDir(n){listDir(child(S.loc,n))}
+function goUp(){var p=parentOf(S.loc);if(p)listDir(p)}
+function goDepth(i){listDir({parts:S.loc.parts.slice(0,i),fid:S.loc.fid,base_name:S.loc.base_name})}
+function goLink(){
+  var t=$('link').value.trim();if(!t)return;
+  S.loading=true;S.listErr='';renderList();renderGo();
+  call('link',{text:t}).then(function(d){$('link').value='';S.loc=d.loc;S.dirs=d.dirs;S.sel=null;S.loading=false;S.dirsLoaded=true;renderCrumbs();renderList();renderTr();
+    if(!d.inside_root)toast('Pasta aberta pelo link. Ela não está dentro de “'+(S.cfg.root_name||'Meu Drive')+'”.')})
+   .catch(function(e){S.loading=false;renderList();renderGo();toast(errText(e))});
+}
+function newFolder(){
+  dialog({icon:ic('plus',BLUE,20),title:'Nova pasta em “'+esc(locName(S.loc))+'”',
+    body:'<input class="inp" id="nfName" placeholder="Nome da pasta" style="width:100%" spellcheck="false">',
+    buttons:[{t:'Cancelar'},{t:'Criar',pri:true,fn:function(){
+      var n=$('nfName').value.trim();if(!n)return false;
+      call('mkdir',{loc:S.loc,name:n}).then(function(d){S.dirs=d.dirs;S.sel=d.created;renderList();renderTr()}).catch(function(e){toast(errText(e))});
+    }}]});
+  setTimeout(function(){var i=$('nfName');if(i){i.focus();i.onkeydown=function(e){if(e.key==='Enter')$('ovF').lastChild.click()}}},50);
+}
+function trPlan(){
+  /* para onde vai a transcrição (regra: pasta Transcrições AO LADO da pasta escolhida) */
+  var d=dest(),p=parentOf(d);
+  if(!S.cfg.engine)return {ok:false,why:'O motor de transcrição não veio dentro do app.'};
+  if(!p){
+    if(d.fid)return {ok:false,why:'Esta pasta veio de um link e não está dentro de “'+(S.cfg.root_name||'Meu Drive')+'”: não sei qual pasta fica ao lado dela.'};
+    return {ok:false,neutral:true,why:'Entre na pasta de destino (ex.: a Saída do dia). A transcrição vai para a pasta Transcrições ao lado dela.'};
+  }
+  return {ok:true,where:locName(p)+' › Transcrições',saida:isSaida(locName(d))};
+}
+function renderTr(){
+  var c=$('trCard'),pl=trPlan(),hasVid=S.files.some(function(f){return f.video});
+  var on=S.transcribe&&pl.ok;
+  var h='<input type="checkbox" id="trChk" '+(on?'checked':'')+' '+(pl.ok?'':'disabled')+' style="margin:2px 0 0;width:16px;height:16px;accent-color:#2f74d0;flex-shrink:0">'+
+    '<div style="display:flex;flex-direction:column;gap:4px;min-width:0"><label for="trChk" style="font-weight:500">Transcrever os vídeos</label>';
+  if(!pl.ok){h+='<span class="mut" style="display:flex;gap:6px;align-items:flex-start;line-height:1.4">'+(pl.neutral?ic('text',ORANGE,14):ic('alert',AMBER,14))+'<span>'+esc(pl.why)+'</span></span>';c.style.borderColor=pl.neutral?'':'rgba(240,182,74,.5)'}
+  else if(!on){h+='<span class="mut">Desligada: os vídeos sobem sem transcrição. O Revisor ouve sozinho, como sempre.</span>';c.style.borderColor=''}
+  else{
+    if(!pl.saida)h+='<span class="mut" style="display:flex;gap:6px;align-items:center">'+ic('alert',AMBER,14)+'Esta pasta não é uma Saída.</span>';
+    h+='<span class="mut" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+ic('text',ORANGE,14)+'A transcrição vai para <span style="color:#e9e9ec">'+esc(pl.where)+'</span>'+(pl.saida?' (fora da Saída)':' (ao lado desta pasta)')+'</span>';
+    h+='<span class="mut">'+(S.files.length&&!hasVid?'Nenhum dos arquivos é vídeo: nada para transcrever.':'Não atrasa o envio: os vídeos começam a subir na hora.')+'</span>';
+    c.style.borderColor=pl.saida?'rgba(150,200,255,.35)':'rgba(240,182,74,.5)';
+  }
+  c.innerHTML=h+'</div>';
+  $('trChk').onchange=function(){S.transcribe=this.checked;renderTr()};
+  renderGo();
+}
+function renderGo(){
+  var b=$('bUp');b.innerHTML=ic('upload','#ffffff',15)+(S.sel?'Subir em “'+esc(S.sel.length>22?S.sel.slice(0,21)+'…':S.sel)+'”':'Subir aqui');
+  b.disabled=!S.files.length||S.loading||!!S.listErr;
+}
+function upload(){
+  if(!S.files.length)return;
+  var d=dest(),pl=trPlan();
+  $('bUp').disabled=true;
+  call('upload',{loc:d,transcribe:S.transcribe&&pl.ok}).then(function(r){S.job=r.job;if(r.tr_note)toast(r.tr_note);renderJob()})
+    .catch(function(e){renderGo();toast(errText(e));if(e.kind==='escopo'||e.kind==='token')openSetup()});
+}
+
+/* ---------------- enviando ---------------- */
+function bar(label,pct,color,right,sub){
+  return '<div style="display:flex;flex-direction:column;gap:5px"><div class="line"><span class="lbl">'+label+'</span><div class="track"><div class="fill" style="width:'+Math.max(0,Math.min(100,pct)).toFixed(1)+'%;background:'+color+'"></div></div><span class="mut" style="width:44px;text-align:right">'+right+'</span></div>'+(sub?'<div class="mut sub">'+sub+'</div>':'')+'</div>';
+}
+function st(label,icon,color,text){return '<div class="line"><span class="lbl">'+label+'</span><span class="tag txt" style="color:'+color+';align-items:flex-start;line-height:1.4">'+(icon?ic(icon,color,14):'')+'<span>'+text+'</span></span></div>'}
+function upPart(it){
+  if(it.up==='enviando'){
+    var t=it.up_total||it.size||0,p=t?it.up_bytes/t*100:0;
+    var sub=fmtB(it.up_bytes)+' de '+fmtB(t)+(it.up_speed?' · '+fmtB(it.up_speed)+'/s':'')+(it.up_eta!=null?' · faltam '+fmtT(it.up_eta):'');
+    return bar('Envio',p,'#4a8fe7',Math.floor(p)+'%',sub);
+  }
+  if(it.up==='ok')return st('Envio','check',GREEN,'Enviado');
+  if(it.up==='erro')return st('Envio','x',RED,'Não subiu: '+esc(it.up_err));
+  if(it.up==='cancelado')return st('Envio','x',GRAY,'Cancelado');
+  return st('Envio','',GRAY,'Na fila');
+}
+function trPart(it){
+  switch(it.tr){
+    case 'ouvindo':
+      if(!it.tr_chunk)return bar('Transcrição',0,ORANGE,'0%','Preparando o áudio…');
+      return bar('Transcrição',it.tr_frac*100,ORANGE,Math.floor(it.tr_frac*100)+'%','Ouvindo o trecho '+it.tr_chunk+' de '+it.tr_chunks+(it.tr_eta?' · faltam cerca de '+fmtT(it.tr_eta):''));
+    case 'pronta':
+      if(it.up==='erro'||it.up==='cancelado')return st('Transcrição','check','#c9cbd1','Pronta, sobe junto quando o vídeo subir');
+      return st('Transcrição','check','#c9cbd1','Pronta, sobe quando o vídeo terminar de subir');
+    case 'enviando':return st('Transcrição','','#c9cbd1','<span style="display:inline-flex;gap:6px;align-items:center"><span class="spin"></span>Enviando…</span>');
+    case 'ok':return st('Transcrição','check',GREEN,'Enviada');
+    case 'erro':return st('Transcrição','alert',AMBER,'Não saiu: '+esc(it.tr_err))+(it.up==='ok'?'<div class="mut sub">O vídeo está certo no Drive. Na revisão, o Revisor ouve sozinho.</div>':'');
+    case 'sem_fala':case 'sem_audio':return st('Transcrição','alert',AMBER,'Não saiu: '+esc(it.tr_err))+(it.up==='ok'?'<div class="mut sub">O vídeo está certo no Drive. Na revisão, o Revisor ouve sozinho.</div>':'');
+    case 'desligada':return st('Transcrição','','#8a8c93','Desligada');
+    case 'nao_se_aplica':return st('Transcrição','','#8a8c93',it.is_dir?'Pasta: sobe sem transcrição':'Não é vídeo: sem transcrição');
+    case 'cancelada':return st('Transcrição','x',GRAY,'Não terminou');
+    default:return st('Transcrição','',GRAY,'Na fila');
+  }
+}
+function itemCard(it){
+  var bc=it.up==='erro'?'rgba(255,138,128,.45)':'';
+  return '<div class="box card" style="'+(bc?'border-color:'+bc:'')+';flex-shrink:0"><div class="vname">'+ic(it.is_dir?'folder':'movie',BLUE,16)+'<span title="'+esc(it.name)+'">'+esc(it.name)+'</span></div>'+upPart(it)+trPart(it)+'</div>';
+}
+function ctxName(d){/* Saída → professor (2 acima); outra pasta → a pasta de cima */
+  var p=parentOf(d);if(!p)return '';if(isSaida(locName(d))){var g=parentOf(p);if(g&&g.parts.length)return locName(g)}return locName(p)}
+function jobDestText(){var j=S.job;if(!j||!j.dest)return '';var d=j.dest,c=ctxName(d);return esc(locName(d))+(c?' · '+esc(c):'')}
+function renderJob(){
+  var j=S.job;if(!j)return goPick();
+  if(!j.busy){renderDone();return}
+  if(S.view!=='vSend')show('vSend');
+  $('title').innerHTML='Enviando para '+jobDestText();
+  var vids=j.items.filter(function(i){return !i.is_dir}).length;
+  var b=$('sendBanner');
+  if(j.videos_done&&j.pending_tr){
+    var okv=j.items.filter(function(i){return i.up==='ok'}).length;
+    var left=j.items.filter(function(i){return i.tr==='ouvindo'||i.tr==='fila'});
+    var eta=0;left.forEach(function(i){eta+=i.tr==='ouvindo'&&i.tr_eta?i.tr_eta:0});
+    b.innerHTML='<div class="box" style="padding:12px 14px;display:flex;gap:10px;align-items:flex-start;border-color:rgba(127,209,155,.45)">'+ic('ccheck',GREEN,20)+
+      '<div style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:600">'+(okv===j.items.length?(okv===1?'O vídeo já está no Drive':'Os '+okv+' vídeos já estão no Drive'):plural(okv,'vídeo já está','vídeos já estão')+' no Drive')+'</span>'+
+      '<span class="mut">Falta terminar a transcrição de '+plural(Math.max(left.length,1),'vídeo','vídeos')+(eta&&left.length===1?' (cerca de '+fmtT(eta)+')':'')+'. Pode continuar trabalhando.</span></div></div>';
+    $('sendNote').innerHTML='';
+    $('sendFoot').innerHTML='<button class="btn" onclick="openDest()">'+ic('ext','#e9e9ec',15)+'Abrir no Drive</button><span style="flex:1"></span><button class="btn" onclick="askClose()">Fechar</button>';
+  }else{
+    b.innerHTML='';
+    var anyTr=j.items.some(function(i){return ['fila','ouvindo','pronta','enviando'].indexOf(i.tr)>=0});
+    $('sendNote').innerHTML=anyTr?ic('wave',GRAY,15)+'<span>O envio não espera a transcrição. Cada transcrição sobe para a pasta Transcrições assim que fica pronta.</span>':'';
+    $('sendFoot').innerHTML='<span style="flex:1"></span><button class="btn" onclick="askCancel()">Cancelar envio</button>';
+  }
+  $('items').innerHTML=j.items.map(itemCard).join('');
+}
+function openDest(){var j=S.job;call('open_drive',{loc:j&&j.dest?j.dest:S.loc}).catch(function(e){toast(errText(e))})}
+
+/* ---------------- fim ---------------- */
+function renderDone(){
+  var j=S.job;show('vDone');closeOv(true);
+  if(S.closing){call('quit');return}
+  $('title').textContent='Subir no Drive';
+  var items=j.items,upOk=items.filter(function(i){return i.up==='ok'}),upBad=items.filter(function(i){return i.up!=='ok'});
+  var trOk=items.filter(function(i){return i.tr==='ok'}).length;
+  var trBad=items.filter(function(i){return ['erro','sem_fala','sem_audio','cancelada','pronta'].indexOf(i.tr)>=0}).length;
+  var allCancel=items.every(function(i){return i.up==='cancelado'});
+  var d=j.dest,p=d?parentOf(d):null,where=d?esc(locName(d))+(p?' › '+esc(locName(p)):''):'';
+  var h='';
+  if(allCancel){
+    h='<div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-top:36px">'+ic('x',GRAY,56)+'<div style="font-size:20px;font-weight:600">Envio cancelado</div><div class="mut" style="font-size:13px">Nada foi enviado. Os arquivos continuam no Mac.</div></div>';
+  }else if(!upBad.length&&!trBad){
+    var vtxt=plural(upOk.length,'arquivo','arquivos')+' em “'+esc(d?locName(d):'')+'”';
+    h='<div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-top:28px">'+ic('ccheck',GREEN,56)+
+      '<div style="font-size:20px;font-weight:600">Tudo no Drive!</div><div class="mut" style="font-size:13px;line-height:1.5">'+vtxt+(trOk?' e '+plural(trOk,'transcrição','transcrições')+' na pasta Transcrições':'')+'<br>'+esc(ctxName(d))+'</div></div>';
+    h+='<div class="box scroll" style="padding:6px;flex-shrink:1">'+items.map(function(i){
+      return '<div class="row" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06)"><span style="display:flex;align-items:center;gap:8px;min-width:0">'+ic(i.is_dir?'folder':'movie',BLUE,15)+'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.name)+'</span></span>'+
+      '<span style="display:flex;gap:12px;flex-shrink:0"><span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+(i.is_dir?'pasta':'vídeo')+'</span>'+(i.tr==='ok'?'<span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+'transcrição</span>':'')+'</span></div>'}).join('')+'</div>';
+    if(j.tr_dest===null&&items.some(function(i){return i.tr==='desligada'})&&S.transcribe)h+='<div class="mut" style="text-align:center">Transcrição desligada neste envio.</div>';
+  }else{
+    var t=upBad.length?(upBad.length===1?'Terminou, mas 1 vídeo não subiu':'Terminou, mas '+upBad.length+' vídeos não subiram'):(trBad===1?'Os vídeos subiram, mas 1 transcrição não saiu':'Os vídeos subiram, mas '+trBad+' transcrições não saíram');
+    var sub=upBad.length?'“Tentar de novo” envia só o que falhou. O que já está no Drive não sobe de novo.':'Na revisão, o Revisor ouve sozinho esses vídeos, como sempre.';
+    h='<div class="box" style="padding:12px 14px;display:flex;gap:10px;align-items:flex-start;border-color:rgba(240,182,74,.5);flex-shrink:0">'+ic('alert',AMBER,20)+'<div style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:600">'+t+'</span><span class="mut">'+sub+'</span></div></div>';
+    h+='<div class="scroll" style="display:flex;flex-direction:column;gap:12px;flex:1">'+items.map(itemCard).join('')+'</div>';
+  }
+  $('doneBody').innerHTML=h;
+  var f='';
+  if(!allCancel)f+='<button class="btn" onclick="openDest()">'+ic('ext','#e9e9ec',15)+'Abrir no Drive</button>';
+  f+='<button class="btn" onclick="newUpload()">Subir outros</button><span style="flex:1"></span><button class="btn" onclick="call(\'quit\')">Fechar</button>';
+  if(j.retryable&&!allCancel)f+='<button class="btn pri" onclick="retry()">Tentar de novo</button>';
+  $('doneFoot').innerHTML=f;
+}
+function retry(){call('retry').then(function(d){S.job=d.job;renderJob()})}
+function newUpload(){call('new').then(function(d){S.job=null;S.files=d.files;goPick()}).catch(function(e){toast(errText(e))})}
+
+/* ---------------- diálogos ---------------- */
+function dialog(o){
+  $('ovI').innerHTML=o.icon||'';$('ovT').innerHTML=o.title;$('ovB').innerHTML=o.body||'';
+  var f=$('ovF');f.innerHTML='';
+  (o.buttons||[]).forEach(function(b){var e=document.createElement('button');e.className='btn'+(b.pri?' pri':'');e.textContent=b.t;
+    e.onclick=function(){if(b.fn&&b.fn()===false)return;closeOv()};f.appendChild(e)});
+  $('ov').classList.remove('hide');
+  var last=f.lastChild;if(last&&!o.noFocus)setTimeout(function(){last.focus()},30);
+}
+function closeOv(){$('ov').classList.add('hide')}
+function askCancel(){
+  dialog({icon:ic('alert',AMBER,22),title:'Cancelar o envio?',
+    body:'<p>O vídeo que está subindo agora para no meio e não fica no Drive. Os que já subiram continuam lá.</p>',
+    buttons:[{t:'Cancelar o envio',fn:function(){call('cancel')}},{t:'Continuar enviando',pri:true}]});
+}
+function askClose(){
+  var j=S.job;
+  if(j&&j.busy&&!j.videos_done){
+    dialog({icon:ic('alert',AMBER,22),title:'Há um envio em andamento',
+      body:'<p>Se fechar agora, o envio é cancelado. Os vídeos que já subiram continuam no Drive.</p>',
+      buttons:[{t:'Cancelar envio e fechar',fn:function(){S.closing=true;call('quit')}},{t:'Continuar enviando',pri:true}]});
+    return;
+  }
+  if(j&&j.busy){
+    var left=j.items.filter(function(i){return ['fila','ouvindo','pronta','enviando'].indexOf(i.tr)>=0});
+    var names=left.map(function(i){return '“'+esc(i.name)+'”'}).join(', ');
+    dialog({icon:ic('alert',AMBER,22),title:'Fechar antes de terminar a transcrição?',
+      body:'<p>Os vídeos já estão no Drive e não mudam nada.</p><p class="mut">Só '+(left.length===1?'a transcrição de '+names+' não vai subir':'as transcrições de '+names+' não vão subir')+'. Na revisão, o Revisor ouve '+(left.length===1?'esse vídeo':'esses vídeos')+' sozinho, como sempre.</p>',
+      buttons:[{t:'Fechar mesmo assim',fn:function(){S.closing=true;call('quit')}},{t:'Continuar transcrevendo',pri:true}]});
+    return;
+  }
+  call('quit');
+}
+
+/* ---------------- primeira vez / configurar ---------------- */
+function openSetup(first){
+  show('vSetup');$('title').textContent='Configurar o Subir no Drive';
+  $('setupTitle').textContent=first?'Primeira vez neste Mac':'Configurar';
+  $('sCancel').classList.toggle('hide',!!first);
+  setupBusy('Procurando o rclone…');
+  call('setup_info',{}).then(function(d){fillSetup(d);setupBusy('')}).catch(function(e){setupBusy('');toast(errText(e))});
+}
+function setupCancel(){goPick(!S.dirsLoaded)}
+function setupBusy(t){S.setupBusy=!!t;$('sBusy').innerHTML=t?'<span style="display:inline-flex;gap:6px;align-items:center"><span class="spin"></span>'+esc(t)+'</span>':'';$('sSave').disabled=!!t}
+function stTag(id,ok,txt){var e=$(id);if(ok===null||ok===undefined){e.innerHTML=txt?'<span class="mut">'+esc(txt)+'</span>':'';return}
+  e.innerHTML=ok?'<span style="color:'+GREEN+';display:inline-flex;gap:4px;align-items:center">'+ic('check',GREEN,13)+esc(txt)+'</span>':'<span style="color:'+AMBER+';display:inline-flex;gap:4px;align-items:center">'+ic('alert',AMBER,13)+esc(txt)+'</span>'}
+function fillSetup(d){
+  S.setup=d;
+  $('sRclone').value=d.rclone||'';
+  $('sRcloneList').innerHTML=(d.rclones||[]).map(function(r){return '<option value="'+esc(r)+'">'}).join('');
+  var sel=$('sRemote');sel.innerHTML=(d.remotes||[]).map(function(r){return '<option value="'+esc(r)+'"'+(r===d.remote?' selected':'')+'>'+esc(r)+(r===d.remote&&d.email?' — '+esc(d.email):'')+'</option>'}).join('')||'<option value="">(nenhuma conexão)</option>';
+  sel.onchange=function(){setupCheck()};
+  $('sRoot').value=d.root||'';
+  stTag('sRcloneSt',d.rclone_ok?true:(d.rclone?false:null),d.rclone_ok?'Encontrado':(d.rclone?'Não funcionou':''));
+  stTag('sRemoteSt',d.remote_ok?(d.can_upload!==false):(d.rclone_ok?false:null),
+    d.remote_ok?(d.can_upload===false?'Só tem permissão para ler':(d.email?'Conta '+d.email+(d.can_upload?', com permissão para enviar':''):'Conexão encontrada')):(d.rclone_ok?'Nenhuma conexão com o Google Drive':''));
+  stTag('sRootSt',d.root_ok,d.root_ok?'A pasta existe':(d.root_ok===false?'Não achei esta pasta':''));
+  var pb=$('sProblem');pb.classList.toggle('hide',!d.problem);$('sProblemTxt').textContent=d.problem||'';
+  var a=$('sAction');a.classList.toggle('hide',!d.action);
+  var lab={fix_scope:'Corrigir permissão',reconnect:'Reconectar',create:'Criar a conexão'}[d.action];
+  a.innerHTML=lab?'<button class="btn pri" onclick="terminal(\''+d.action+'\')">'+lab+' (abre o Terminal)</button><span class="mut" style="align-self:center">Depois volte aqui e clique em Conferir.</span>':'';
+}
+function setupData(){return {rclone:$('sRclone').value.trim(),remote:$('sRemote').value,root:$('sRoot').value.trim()}}
+function setupCheck(){setupBusy('Conferindo…');call('setup_check',setupData()).then(function(d){d.rclones=(S.setup&&S.setup.rclones)||[];fillSetup(d);setupBusy('')}).catch(function(e){setupBusy('');toast(errText(e))})}
+function pickRclone(){call('setup_pick_rclone').then(function(d){if(d.rclone){$('sRclone').value=d.rclone;setupCheck()}})}
+function terminal(w){var d=setupData();d.what=w;call('open_terminal',d).catch(function(e){toast(errText(e))})}
+function setupSave(){
+  setupBusy('Testando…');
+  call('setup_save',setupData()).then(function(r){setupBusy('');
+    if(!r.saved){r.check.rclones=(S.setup&&S.setup.rclones)||[];fillSetup(r.check);return}
+    S.dirsLoaded=false;S.loc={parts:[],fid:null,base_name:''};init(r.init);toast('Configuração salva.')})
+   .catch(function(e){setupBusy('');toast(errText(e))});
+}
+start();
+</script>
+</body>
+</html>

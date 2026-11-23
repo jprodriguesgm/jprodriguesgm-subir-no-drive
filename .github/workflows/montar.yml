@@ -1,0 +1,215 @@
+# Monta o "Subir no Drive" para Mac (Apple Silicon) e publica em "Releases".
+# Roda quando alguém aperta "Run workflow" (aba Actions) ou quando sobe uma etiqueta v1.2.3.
+#   - "Versão oficial" vazia → "Montagem N (teste)", pré-lançamento (as equipes não recebem).
+#   - "Versão oficial" = 5.0.0 (ou etiqueta v5.0.0) → versão oficial, entregue pelo link releases/latest.
+# Não roda a cada push; FFmpeg/whisper-cli/modelo ficam no cache entre uma montagem e outra.
+name: Montar o app
+
+on:
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão oficial (ex.: 5.0.0). Deixe vazio para uma versão de teste."
+        type: string
+        default: ""
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: montar
+  cancel-in-progress: false
+
+jobs:
+  montar:
+    runs-on: macos-15
+    timeout-minutes: 75
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PYTHONUTF8: "1"
+    steps:
+      - name: Conferir a versão oficial
+        env:
+          VERSAO: ${{ inputs.versao }}
+        run: |
+          if [ -n "$VERSAO" ] && ! [[ "$VERSAO" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Versão::Use o formato 5.0.0 (só números e pontos), sem o v."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Programas de dentro do app (cache)
+        id: deps
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            bin
+            models
+          key: deps-mac-${{ hashFiles('packaging/build_deps.py') }}
+
+      - name: Montar FFmpeg e whisper-cli e baixar o modelo
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: python packaging/build_deps.py
+
+      - name: Guardar programas no cache
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            bin
+            models
+          key: deps-mac-${{ hashFiles('packaging/build_deps.py') }}
+
+      - name: Conferir programas
+        run: python packaging/build_deps.py check
+
+      - name: Python do app
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller pytest
+
+      # O pip num Mac 14+ escolhe o numpy "só macOS 14+"; o Mac do trabalho é macOS 13.1.
+      - name: numpy que roda desde o macOS 11
+        run: |
+          NV=$(python -c "import numpy; print(numpy.__version__)")
+          python -m pip download "numpy==$NV" --platform macosx_11_0_arm64 --only-binary=:all: --no-deps -d wheels11
+          python -m pip install --force-reinstall --no-deps wheels11/numpy-*.whl
+          python -c "import numpy; print('numpy', numpy.__version__, numpy.__file__)"
+
+      - name: Versão oficial
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.versao != ''
+        env:
+          VERSAO: ${{ inputs.versao }}
+        run: |
+          VER="${VERSAO:-${GITHUB_REF#refs/tags/v}}"
+          python -c "import re,sys; p='subir/__init__.py'; s=open(p,encoding='utf-8').read(); open(p,'w',encoding='utf-8').write(re.sub(r'__version__ = \".*\"', '__version__ = \"'+sys.argv[1]+'\"', s))" "$VER"
+          python -c "import subir; print('versão', subir.__version__)"
+
+      # se algum teste falhar, o resumo vira anotação (dá para ler sem abrir o log)
+      - name: Testes (inclui uma transcrição de verdade com voz do Mac)
+        run: |
+          set +e
+          say -v '?' | grep -iE "pt[_-]BR" | head -3
+          python -m pytest -q -rfEs tests > pytest.txt 2>&1
+          rc=$?
+          tail -40 pytest.txt
+          echo "::notice title=Testes::$(tail -3 pytest.txt | tr '\n' '|')"
+          if [ $rc -ne 0 ]; then
+            echo "::error title=Testes::$(grep -E '^(FAILED|ERROR)|Error:|assert |^E  ' pytest.txt | head -40 | tr '\n' '|' | cut -c1-3500)"
+          fi
+          exit $rc
+
+      - name: Montar o app (PyInstaller)
+        run: pyinstaller --noconfirm packaging/subir.spec
+
+      - name: macOS mínimo de tudo dentro do app
+        run: |
+          set +e
+          python packaging/check_macos_min.py "dist/Subir no Drive.app" 11.0 > minos.txt 2>&1
+          rc=$?
+          cat minos.txt
+          echo "::notice title=macOS mínimo::$(tr '\n' '|' < minos.txt)"
+          exit $rc
+
+      - name: Diagnóstico do app montado
+        run: |
+          echo "### Mac" > diag-mac.txt
+          cat minos.txt >> diag-mac.txt
+          sw_vers | tr '\n' ' ' >> diag-mac.txt; echo >> diag-mac.txt
+          set +e
+          "dist/Subir no Drive.app/Contents/MacOS/Subir no Drive" diagnostico > d.txt 2>&1
+          rc=$?
+          cat d.txt | tee -a diag-mac.txt
+          codesign --verify --deep --verbose=1 "dist/Subir no Drive.app" 2>&1 | tee -a diag-mac.txt
+          du -sh "dist/Subir no Drive.app" | tee -a diag-mac.txt
+          echo "::notice title=Diagnóstico::$(tr '\n' '|' < diag-mac.txt)"
+          exit $rc
+
+      # Teste de ponta a ponta com o app montado: janela de verdade, "Drive" de mentira (pasta local) e
+      # transcrição de verdade de uma aula falada pela voz do Mac. Tira fotos da janela.
+      - name: Teste da janela (envio + transcrição)
+        run: |
+          set -e
+          T="$RUNNER_TEMP/teste"; rm -rf "$T"; mkdir -p "$T/sup" "$T/bin" "$T/videos" "$T/drive/Gravações IEC/26_701 Maria Clara Souza/2026 11 10/Saída" "$T/drive/Gravações IEC/26_600 Professor Exemplo"
+          cp tools/fake_rclone.py "$T/bin/rclone"; chmod +x "$T/bin/rclone"
+          printf 'export PATH="%s:$PATH"\n' "$T/bin" > "$T/sup/env.sh"
+          printf 'drive\nGravações IEC\nconta@exemplo.edu\n' > "$T/sup/config.txt"
+          VOZ=$(say -v '?' | grep -iE "pt[_-]BR" | head -1 | awk '{print $1}')
+          echo "voz: $VOZ"
+          TXT="Olá, pessoal. Então, nessa aula a gente vai ver o conceito de gestão de projetos. Errei, vou voltar. Nessa aula a gente vai ver o conceito de gestão de riscos e a matriz de riscos."
+          say -v "${VOZ:-Luciana}" -o "$T/fala.aiff" "$TXT $TXT $TXT"
+          bin/ffmpeg -v error -y -f lavfi -i "testsrc2=size=1280x720:rate=30" -i "$T/fala.aiff" -c:v libx264 -b:v 6M -c:a aac -shortest "$T/videos/01 Aula de teste.mp4"
+          ls -la "$T/videos"
+          set +e
+          SUBIR_SUPPORT_DIR="$T/sup" SUBIR_WORK_DIR="$T/work" FAKE_DRIVE="$T/drive" FAKE_SPEED=3000000 \
+          SUBIR_TEST_OPEN="26_701 Maria Clara Souza/2026 11 10/Saída" SUBIR_TEST_UPLOAD=1 SUBIR_TEST_MID=5 SUBIR_TEST_TIMEOUT=400 \
+            perl -e 'alarm shift; exec @ARGV' 600 "dist/Subir no Drive.app/Contents/MacOS/Subir no Drive" janela-teste --foto fotos "$T/videos/01 Aula de teste.mp4"
+          rc=$?
+          echo "saiu com $rc"
+          ls -la fotos || true
+          find "$T/drive" -type f | tee -a diag-mac.txt
+          J="$T/drive/Gravações IEC/26_701 Maria Clara Souza/2026 11 10/Transcrições/01 Aula de teste.transcricao.json"
+          if [ -f "$J" ]; then
+            cp "$J" fotos/
+            python -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); print('transcrição:', len(d['words']), 'palavras,', d['video']['duracao'], 's,', d['motor']); print(' '.join(w[2] for w in d['words'])[:400])" "$J" | tee -a diag-mac.txt
+          else
+            echo "SEM TRANSCRIÇÃO NO DRIVE" | tee -a diag-mac.txt
+          fi
+          cat fotos/resultado.json 2>/dev/null | head -60
+          echo "::notice title=Teste da janela::$(tail -4 diag-mac.txt | tr '\n' '|')"
+          test -f "$J" && test -f "$T/drive/Gravações IEC/26_701 Maria Clara Souza/2026 11 10/Saída/01 Aula de teste.mp4"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: fotos-janela
+          path: fotos
+          retention-days: 14
+
+      - name: Compactar
+        run: |
+          # nome fixo: o link ".../releases/latest/download/Subir-no-Drive-mac.zip" sempre baixa a versão oficial mais nova
+          ditto -c -k --sequesterRsrc --keepParent "dist/Subir no Drive.app" "Subir-no-Drive-mac.zip"
+          ls -la *.zip | tee -a diag-mac.txt
+
+      - name: Publicar em Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSAO: ${{ inputs.versao }}
+        run: |
+          if [ -n "$VERSAO" ] || [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [ -n "$VERSAO" ]; then TAG="v$VERSAO"; else TAG="${GITHUB_REF#refs/tags/}"; fi
+            TIT="Subir no Drive ${TAG#v}"; PRE="--latest"
+            AVISO="Versão oficial. Baixe Subir-no-Drive-mac.zip."
+          else
+            TAG="montagem-${GITHUB_RUN_NUMBER}"; TIT="Montagem ${GITHUB_RUN_NUMBER} (teste)"; PRE="--prerelease"
+            AVISO="Versão de TESTE, ainda não liberada para as equipes. Use a versão oficial mais recente."
+          fi
+          {
+            echo "$AVISO"
+            echo
+            echo "Mac com Apple Silicon (M1 ou mais novo), macOS 11 ou mais novo. Como instalar e usar: veja o [Guia](https://github.com/$GITHUB_REPOSITORY/blob/main/GUIA.md)."
+            echo
+            echo "Primeira abertura de cada versão (o app não tem assinatura da Apple): no Terminal,"
+            echo '`xattr -dr com.apple.quarantine ~/Applications/"Subir no Drive.app"`'
+            echo
+            echo "<details><summary>Diagnóstico da montagem</summary>"
+            echo
+            echo '```'
+            cat diag-mac.txt
+            echo '```'
+            echo "</details>"
+          } > notas.md
+          if ! gh release create "$TAG" Subir-no-Drive-mac.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+                 --title "$TIT" $PRE --notes-file notas.md > saida.txt 2>&1; then
+            echo "::error title=Release::$(tail -c 1500 saida.txt | tr '\n' ' ')"
+            exit 1
+          fi
+          cat saida.txt
