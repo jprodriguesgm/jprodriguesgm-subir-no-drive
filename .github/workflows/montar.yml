@@ -166,6 +166,17 @@ jobs:
           echo "::notice title=Teste da janela::$(tail -4 diag-mac.txt | tr '\n' '|')"
           test -f "$J" && test -f "$T/drive/Gravações IEC/26_701 Maria Clara Souza/2026 11 10/Saída/01 Aula de teste.mp4"
 
+      # as fotos também vão para o registro (em texto), para conferir a janela sem baixar o artefato
+      - name: Fotos da janela no registro
+        if: always()
+        run: |
+          for f in fotos/*.png; do
+            [ -f "$f" ] || continue
+            echo "=== FOTO $(basename "$f")"
+            base64 -i "$f" | tr -d '\n'; echo
+            echo "=== FIM"
+          done
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
