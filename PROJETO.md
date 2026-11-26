@@ -33,6 +33,11 @@ as falas de novo.
 - Organização no Drive: `<pasta das gravações>/<código + professor>/<AAAA MM DD>/Saída` (vídeos) e
   `.../<AAAA MM DD>/Transcrições` (fora da Saída, para não ir para o servidor/NAS junto com os vídeos).
   Usa a pasta "Transcrições" que já existir (com ou sem acento); se não existir, cria "Transcrições".
+- Pasta arrastada (ex.: a "Saída" inteira do Mac, enviada para a pasta do dia): cada arquivo de dentro sobe
+  para `<destino>/<pasta>/…` e os vídeos de dentro também são transcritos; a transcrição vai para a pasta
+  Transcrições ao lado da pasta enviada (`<dia>/Transcrições`). Regra geral: "Transcrições" fica sempre ao
+  lado da pasta onde o vídeo fica (pedido do JP, 26/11/2026; antes a pasta subia sem transcrição e a
+  transcrição ia uma pasta acima).
 - Link colado: o app procura a pasta dentro da pasta inicial (até 4 níveis) para saber o caminho e a pasta
   ao lado. Se a pasta do link estiver fora da pasta inicial, sobe para ela, mas sem transcrição (não dá para
   saber qual pasta fica ao lado).

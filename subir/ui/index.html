@@ -459,7 +459,7 @@ function renderDone(){
     h='<div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-top:28px">'+ic('ccheck',GREEN,56)+
       '<div style="font-size:20px;font-weight:600">Tudo no Drive!</div><div class="mut" style="font-size:13px;line-height:1.5">'+vtxt+(trOk?' e '+plural(trOk,'transcrição','transcrições')+' na pasta Transcrições':'')+'<br>'+esc(ctxName(d))+'</div></div>';
     h+='<div class="box scroll" style="padding:6px;flex-shrink:1">'+items.map(function(i){
-      return '<div class="row" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06)"><span style="display:flex;align-items:center;gap:8px;min-width:0">'+ic(i.is_dir?'folder':'movie',BLUE,15)+'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.name)+'</span></span>'+
+      return '<div class="row" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06)"><span style="display:flex;align-items:center;gap:8px;min-width:0">'+ic(i.tr==='nao_se_aplica'?'file':'movie',BLUE,15)+'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.name)+'</span></span>'+
       '<span style="display:flex;gap:12px;flex-shrink:0"><span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+(i.tr==='nao_se_aplica'?'arquivo':'vídeo')+'</span>'+(i.tr==='ok'?'<span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+'transcrição</span>':'')+'</span></div>'}).join('')+'</div>';
     if(items.some(function(i){return i.tr==='desligada'})&&S.transcribe)h+='<div class="mut" style="text-align:center">Transcrição desligada neste envio.</div>';
   }else{

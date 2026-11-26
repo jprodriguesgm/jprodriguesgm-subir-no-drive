@@ -75,6 +75,8 @@ feita de novo (o Revisor só usa a transcrição se a duração bater com a do v
 
 **Posso desligar a transcrição?** Sim: desmarque a caixa antes de subir. Os vídeos sobem como antes.
 
-**E as pastas?** Pode arrastar uma pasta: ela sobe inteira, mas sem transcrição dos vídeos de dentro.
+**Posso arrastar a pasta Saída inteira?** Pode. Entre na pasta do dia (`<professor>/<AAAA MM DD>`) e clique
+em **Subir aqui**: a pasta sobe com tudo dentro, os vídeos de dentro são transcritos e a transcrição vai para
+`<AAAA MM DD>/Transcrições`, ao lado da Saída. A caixa da transcrição mostra o caminho antes de subir.
 
 **O Windows (outro campus) muda alguma coisa?** Não. Continua copiando para o servidor da PUC.
