@@ -14,7 +14,7 @@ import traceback
 from pathlib import Path
 
 from . import __version__, config, fala
-from .job import Job, make_items, transcription_dest
+from .job import Job, assign_transcription_dests, landing, make_items
 from .rclone import DriveError, Loc, Rclone, folder_id_from_link
 
 
@@ -79,8 +79,16 @@ class App:
                 size = pp.stat().st_size if pp.is_file() else None
             except OSError:
                 size = None
+            videos = 0
+            if pp.is_dir():
+                try:
+                    videos = sum(1 for f in pp.rglob("*") if f.is_file() and fala.is_video(f)
+                                 and not any(x.startswith(".") for x in f.relative_to(pp).parts))
+                    size = sum(f.stat().st_size for f in pp.rglob("*") if f.is_file())
+                except OSError:
+                    pass
             out.append({"path": p, "name": pp.name, "is_dir": pp.is_dir(), "size": size,
-                        "video": pp.is_file() and fala.is_video(pp)})
+                        "video": pp.is_file() and fala.is_video(pp), "videos": videos})
         return out
 
     def job_view(self) -> dict | None:
@@ -203,16 +211,18 @@ class App:
         dest = Loc.from_dict(msg.get("loc"))
         transcribe = bool(msg.get("transcribe", True)) and fala.available()
         items = make_items(self.files, transcribe)
-        tr_dest, why = (None, "")
-        if transcribe and any(it.tr == "fila" for it in items):
-            tr_dest, why = transcription_dest(rc, dest)
-        self.job_dest, self.job_tr_dest = dest, tr_dest
-        self.job = Job(rc, items, dest, tr_dest, on_change=self._job_changed)
-        log(f"envio: {len(items)} item(ns) para {rc.spec(dest)}; transcrição: "
-            f"{rc.spec(tr_dest) if tr_dest else 'não (' + (why or 'desligada') + ')'}")
+        if not items:
+            raise DriveError("As pastas escolhidas estão vazias.")
+        why = assign_transcription_dests(rc, dest, items) if transcribe else ""
+        self.job_dest = dest
+        self.job_tr_dest = next((it.tr_dest for it in items if it.tr_dest is not None), None)
+        self.job = Job(rc, items, dest, on_change=self._job_changed)
+        for it in items:
+            log(f"envio: {it.name} → {rc.spec(landing(dest, it))}"
+                f"; transcrição: {rc.spec(it.tr_dest) if it.tr_dest else it.tr}")
         self.job.start()
         self.bridge.busy_changed(True)
-        return {"job": self.job_view(), "tr_note": why}
+        return {"job": self.job_view(), "tr_note": why if transcribe else ""}
 
     def _job_changed(self) -> None:
         # no máximo ~4 atualizações por segundo para a tela; a última sempre chega

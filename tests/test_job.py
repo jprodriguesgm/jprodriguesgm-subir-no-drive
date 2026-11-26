@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 
 from subir import fala
-from subir.job import Job, make_items, transcription_dest
+from subir.job import Job, assign_transcription_dests, make_items, transcription_dest
 from subir.rclone import Loc, Rclone
 
 SAIDA = Loc(["26_701 Maria Clara Souza", "2026 11 10", "Saída"])
@@ -24,8 +24,17 @@ def fake(step=0.05, n=3, fail=None):
     return tr
 
 
+def prep(rc, items, dest, transcribe=True):
+    if transcribe:
+        assign_transcription_dests(rc, dest, items)
+    return items
+
+
 def run_job(rc, items, dest, tr, transcriber):
-    j = Job(rc, items, dest, tr, transcriber=transcriber)
+    """tr: True = escolhe a pasta Transcrições pela regra; None = sem transcrição."""
+    if tr is not None:
+        assign_transcription_dests(rc, dest, items)
+    j = Job(rc, items, dest, transcriber=transcriber)
     j.start()
     j.wait(60)
     for _ in range(100):
@@ -39,7 +48,7 @@ def test_vai_para_transcricoes_ao_lado_da_saida(drive, videos):
     rc = Rclone(drive["rclone"], "drive", None, "Gravações IEC")
     tr, why = transcription_dest(rc, SAIDA)
     assert why == "" and tr.parts == ["26_701 Maria Clara Souza", "2026 11 10", "Transcrições"]
-    j = run_job(rc, make_items(videos, True), SAIDA, tr, fake())
+    j = run_job(rc, make_items(videos, True), SAIDA, True, fake())
     day = drive["root"] / "Gravações IEC" / "26_701 Maria Clara Souza" / "2026 11 10"
     assert sorted(p.name for p in (day / "Saída").iterdir()) == ["01 Aula.mp4", "02 Aula.mp4"]
     got = sorted(p.name for p in (day / "Transcrições").iterdir())
@@ -75,7 +84,7 @@ def test_transcricao_nao_atrasa_o_envio(drive, videos, monkeypatch):
     """Os vídeos sobem enquanto a transcrição (lenta) ainda roda."""
     rc = Rclone(drive["rclone"], "drive", None, "Gravações IEC")
     tr, _ = transcription_dest(rc, SAIDA)
-    j = Job(rc, make_items(videos, True), SAIDA, tr, transcriber=fake(step=0.6, n=3))
+    j = Job(rc, prep(rc, make_items(videos, True), SAIDA), SAIDA, transcriber=fake(step=0.6, n=3))
     j.start()
     t0 = time.time()
     while not j.videos_done and time.time() - t0 < 20:
@@ -94,8 +103,7 @@ def test_transcricao_nao_atrasa_o_envio(drive, videos, monkeypatch):
 def test_video_que_falha_e_tentar_de_novo(drive, videos, monkeypatch):
     monkeypatch.setenv("FAKE_FAIL", "02 Aula")
     rc = Rclone(drive["rclone"], "drive", None, "Gravações IEC")
-    tr, _ = transcription_dest(rc, SAIDA)
-    j = run_job(rc, make_items(videos, True), SAIDA, tr, fake())
+    j = run_job(rc, make_items(videos, True), SAIDA, True, fake())
     a, b = j.items
     assert a.up == "ok" and a.tr == "ok"
     assert b.up == "erro" and b.up_kind == "internet" and b.tr == "pronta"   # espera o vídeo subir
@@ -115,11 +123,10 @@ def test_video_que_falha_e_tentar_de_novo(drive, videos, monkeypatch):
 
 def test_sem_fala_nao_sobe_transcricao(drive, videos):
     rc = Rclone(drive["rclone"], "drive", None, "Gravações IEC")
-    tr, _ = transcription_dest(rc, SAIDA)
-    j = run_job(rc, make_items(videos, True), SAIDA, tr, fake(fail="sem_fala"))
+    j = run_job(rc, make_items(videos, True), SAIDA, True, fake(fail="sem_fala"))
     # "fail" só pega o nome: aqui nenhum vídeo tem "sem_fala" no nome → tudo ok
     assert all(it.tr == "ok" for it in j.items)
-    j2 = run_job(rc, make_items(videos[:1], True), SAIDA, tr, fake(fail="01 Aula"))
+    j2 = run_job(rc, make_items(videos[:1], True), SAIDA, True, fake(fail="01 Aula"))
     assert j2.items[0].tr == "erro"
 
 
@@ -127,7 +134,7 @@ def test_cancelar(drive, videos, monkeypatch):
     monkeypatch.setenv("FAKE_SPEED", "1000000")
     rc = Rclone(drive["rclone"], "drive", None, "Gravações IEC")
     tr, _ = transcription_dest(rc, SAIDA)
-    j = Job(rc, make_items(videos, True), SAIDA, tr, transcriber=fake(step=0.5))
+    j = Job(rc, prep(rc, make_items(videos, True), SAIDA), SAIDA, transcriber=fake(step=0.5))
     j.start()
     time.sleep(0.8)
     j.cancel()
@@ -151,14 +158,40 @@ def test_transcricao_desligada_e_arquivo_que_nao_e_video(drive, videos, tmp_path
     assert not (day / "Transcrições").exists()
 
 
-def test_pasta_inteira(drive, videos, tmp_path):
+def test_pasta_saida_inteira(drive, videos, tmp_path):
+    """Arrastar a pasta "Saída" inteira para a pasta do dia: os vídeos de dentro são transcritos e a
+    transcrição vai para <dia>/Transcrições (ao lado da Saída), não uma pasta acima (pedido do JP, 26/11)."""
     rc = Rclone(drive["rclone"], "drive", None, "Gravações IEC")
-    folder = tmp_path / "videos"
-    items = make_items([str(folder)], True)
-    assert items[0].is_dir and items[0].tr == "nao_se_aplica"
-    j = run_job(rc, items, SAIDA, None, fake())
+    saida = tmp_path / "Saída"
+    saida.mkdir()
+    for v in videos:
+        Path(v).rename(saida / Path(v).name)
+    (saida / ".DS_Store").write_bytes(b"x")
+    (saida / "tempo.txt").write_text("10:00")
+    day_loc = Loc(["26_701 Maria Clara Souza", "2026 11 10"])
+    items = make_items([str(saida)], True)
+    assert [(it.name, it.sub, it.tr) for it in items] == [
+        ("01 Aula.mp4", ["Saída"], "fila"), ("02 Aula.mp4", ["Saída"], "fila"), ("tempo.txt", ["Saída"], "nao_se_aplica")]
+    j = run_job(rc, items, day_loc, True, fake())
     day = drive["root"] / "Gravações IEC" / "26_701 Maria Clara Souza" / "2026 11 10"
-    assert (day / "Saída" / "videos" / "01 Aula.mp4").exists()
+    assert sorted(p.name for p in (day / "Saída").iterdir()) == ["01 Aula.mp4", "02 Aula.mp4", "tempo.txt"]
+    assert sorted(p.name for p in (day / "Transcrições").iterdir()) == ["01 Aula.transcricao.json",
+                                                                       "02 Aula.transcricao.json"]
+    assert not (drive["root"] / "Gravações IEC" / "26_701 Maria Clara Souza" / "Transcrições").exists()
+    assert all(it.up == "ok" for it in j.items)
+
+
+def test_pasta_com_subpasta(drive, tmp_path):
+    rc = Rclone(drive["rclone"], "drive", None, "Gravações IEC")
+    f = tmp_path / "Saída"
+    (f / "Extras").mkdir(parents=True)
+    (f / "Extras" / "03 Bônus.mp4").write_bytes(b"0" * 1000)
+    items = make_items([str(f)], True)
+    assert items[0].sub == ["Saída", "Extras"]
+    run_job(rc, items, SAIDA.parent(), True, fake())
+    day = drive["root"] / "Gravações IEC" / "26_701 Maria Clara Souza" / "2026 11 10"
+    assert (day / "Saída" / "Extras" / "03 Bônus.mp4").exists()
+    assert (day / "Saída" / "Transcrições" / "03 Bônus.transcricao.json").exists()
 
 
 def test_progresso_texto_rclone_antigo(drive, videos, monkeypatch):

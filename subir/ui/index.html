@@ -255,7 +255,8 @@ function renderFiles(){
   }else{
     b.style.borderStyle='solid';
     var tot=0,known=true;f.forEach(function(x){if(x.size==null)known=false;else tot+=x.size});
-    var more=f.length>1?'e mais '+plural(f.length-1,'arquivo','arquivos')+(known?' · '+fmtB(tot)+' no total':''):(known?fmtB(tot):'pasta');
+    var more=f.length>1?'e mais '+plural(f.length-1,'arquivo','arquivos')+(known?' · '+fmtB(tot)+' no total':''):
+      (f[0].is_dir?'pasta com '+plural(f[0].videos||0,'vídeo','vídeos')+(known?' · '+fmtB(tot):''):(known?fmtB(tot):''));
     var names=f.map(function(x){return x.name}).join('\n');
     b.innerHTML=ic(f[0].is_dir?'folder':(f[0].video?'movie':'file'),BLUE,20)+'<div style="flex:1;min-width:0" title="'+esc(names)+'"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f[0].name)+'</div><div class="mut">'+more+'</div></div>'+
       '<button class="btn sm" onclick="pickFiles()" aria-label="Adicionar arquivos" title="Adicionar arquivos">'+ic('add','#e9e9ec',14)+'</button>'+
@@ -319,26 +320,38 @@ function newFolder(){
   setTimeout(function(){var i=$('nfName');if(i){i.focus();i.onkeydown=function(e){if(e.key==='Enter')$('ovF').lastChild.click()}}},50);
 }
 function trPlan(){
-  /* para onde vai a transcrição (regra: pasta Transcrições AO LADO da pasta escolhida) */
-  var d=dest(),p=parentOf(d);
+  /* para onde vai a transcrição: pasta Transcrições AO LADO da pasta onde o vídeo fica.
+     Vídeo solto → ao lado da pasta escolhida; pasta arrastada (ex.: Saída) → ao lado dessa pasta. */
+  var d=dest();
   if(!S.cfg.engine)return {ok:false,why:'O motor de transcrição não veio dentro do app.'};
-  if(!p){
+  var lands=[];
+  S.files.forEach(function(f){if(f.is_dir){if(f.videos)lands.push(child(d,f.name))}else if(f.video)lands.push(d)});
+  if(!S.files.length)lands.push(d);
+  var wheres=[],seen={},bad=0,saida=false,any=false;
+  lands.forEach(function(l){var p=parentOf(l);if(!p){bad++;return}any=true;if(isSaida(locName(l)))saida=true;
+    var w=locName(p)+' › Transcrições';if(!seen[w]){seen[w]=1;wheres.push(w)}});
+  if(!any){
     if(d.fid)return {ok:false,why:'Esta pasta veio de um link e não está dentro de “'+(S.cfg.root_name||'Meu Drive')+'”: não sei qual pasta fica ao lado dela.'};
-    return {ok:false,neutral:true,why:'Entre na pasta de destino (ex.: a Saída do dia). A transcrição vai para a pasta Transcrições ao lado dela.'};
+    if(lands.length)return {ok:false,neutral:true,why:'Entre na pasta de destino (ex.: a Saída do dia). A transcrição vai para a pasta Transcrições ao lado dela.'};
   }
-  return {ok:true,where:locName(p)+' › Transcrições',saida:isSaida(locName(d))};
+  return {ok:any,where:wheres.join(' e '),saida:saida,folder:S.files.some(function(f){return f.is_dir&&f.videos}),partial:bad>0,
+    novid:!lands.length};
 }
 function renderTr(){
-  var c=$('trCard'),pl=trPlan(),hasVid=S.files.some(function(f){return f.video});
+  var c=$('trCard'),pl=trPlan();
   var on=S.transcribe&&pl.ok;
   var h='<input type="checkbox" id="trChk" '+(on?'checked':'')+' '+(pl.ok?'':'disabled')+' style="margin:2px 0 0;width:16px;height:16px;accent-color:#2f74d0;flex-shrink:0">'+
     '<div style="display:flex;flex-direction:column;gap:4px;min-width:0"><label for="trChk" style="font-weight:500">Transcrever os vídeos</label>';
   if(!pl.ok){h+='<span class="mut" style="display:flex;gap:6px;align-items:flex-start;line-height:1.4">'+(pl.neutral?ic('text',ORANGE,14):ic('alert',AMBER,14))+'<span>'+esc(pl.why)+'</span></span>';c.style.borderColor=pl.neutral?'':'rgba(240,182,74,.5)'}
   else if(!on){h+='<span class="mut">Desligada: os vídeos sobem sem transcrição. O Revisor ouve sozinho, como sempre.</span>';c.style.borderColor=''}
   else{
-    if(!pl.saida)h+='<span class="mut" style="display:flex;gap:6px;align-items:center">'+ic('alert',AMBER,14)+'Esta pasta não é uma Saída.</span>';
-    h+='<span class="mut" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+ic('text',ORANGE,14)+'A transcrição vai para <span style="color:#e9e9ec">'+esc(pl.where)+'</span>'+(pl.saida?' (fora da Saída)':' (ao lado desta pasta)')+'</span>';
-    h+='<span class="mut">'+(S.files.length&&!hasVid?'Nenhum dos arquivos é vídeo: nada para transcrever.':'Não atrasa o envio: os vídeos começam a subir na hora.')+'</span>';
+    if(pl.novid){h+='<span class="mut">Nenhum dos arquivos é vídeo: nada para transcrever.</span>'}
+    else{
+    if(!pl.saida)h+='<span class="mut" style="display:flex;gap:6px;align-items:center">'+ic('alert',AMBER,14)+(pl.folder?'A pasta enviada não é uma Saída.':'Esta pasta não é uma Saída.')+'</span>';
+    h+='<span class="mut" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+ic('text',ORANGE,14)+'A transcrição vai para <span style="color:#e9e9ec">'+esc(pl.where)+'</span>'+(pl.saida?' (fora da Saída)':(pl.folder?' (ao lado da pasta enviada)':' (ao lado desta pasta)'))+'</span>';
+    if(pl.folder)h+='<span class="mut">Os vídeos de dentro da pasta também são transcritos.</span>';
+    h+='<span class="mut">Não atrasa o envio: os vídeos começam a subir na hora.</span>';
+    }
     c.style.borderColor=pl.saida?'rgba(150,200,255,.35)':'rgba(240,182,74,.5)';
   }
   c.innerHTML=h+'</div>';
@@ -393,11 +406,15 @@ function trPart(it){
 }
 function itemCard(it){
   var bc=it.up==='erro'?'rgba(255,138,128,.45)':'';
-  return '<div class="box card" style="'+(bc?'border-color:'+bc:'')+';flex-shrink:0"><div class="vname">'+ic(it.is_dir?'folder':'movie',BLUE,16)+'<span title="'+esc(it.name)+'">'+esc(it.name)+'</span></div>'+upPart(it)+trPart(it)+'</div>';
+  var pre=it.sub&&it.sub.length?'<span class="mut" style="font-weight:400;flex-shrink:0">'+esc(it.sub.join(' › '))+' ›</span>':'';
+  return '<div class="box card" style="'+(bc?'border-color:'+bc:'')+';flex-shrink:0"><div class="vname">'+ic(it.is_dir?'folder':(/\.(mp4|mov|m4v|mkv|avi|mxf|webm|mts|m2ts)$/i.test(it.name)?'movie':'file'),BLUE,16)+pre+'<span title="'+esc(it.name)+'">'+esc(it.name)+'</span></div>'+upPart(it)+trPart(it)+'</div>';
 }
 function ctxName(d){/* Saída → professor (2 acima); outra pasta → a pasta de cima */
   var p=parentOf(d);if(!p)return '';if(isSaida(locName(d))){var g=parentOf(p);if(g&&g.parts.length)return locName(g)}return locName(p)}
-function jobDestText(){var j=S.job;if(!j||!j.dest)return '';var d=j.dest,c=ctxName(d);return esc(locName(d))+(c?' · '+esc(c):'')}
+function effDest(j){/* pasta onde os arquivos ficaram: o destino, ou a pasta arrastada se todos vieram dela */
+  if(!j||!j.dest)return null;var d=j.dest,its=j.items;if(!its.length||!its[0].sub||!its[0].sub.length)return d;
+  var first=its[0].sub[0];if(!its.every(function(i){return i.sub&&i.sub[0]===first}))return d;return child(d,first)}
+function jobDestText(){var j=S.job,d=effDest(j);if(!d)return '';var c=ctxName(d);return esc(locName(d))+(c?' · '+esc(c):'')}
 function renderJob(){
   var j=S.job;if(!j)return goPick();
   if(!j.busy){renderDone();return}
@@ -422,7 +439,7 @@ function renderJob(){
   }
   $('items').innerHTML=j.items.map(itemCard).join('');
 }
-function openDest(){var j=S.job;call('open_drive',{loc:j&&j.dest?j.dest:S.loc}).catch(function(e){toast(errText(e))})}
+function openDest(){var d=effDest(S.job);call('open_drive',{loc:d||S.loc}).catch(function(e){toast(errText(e))})}
 
 /* ---------------- fim ---------------- */
 function renderDone(){
@@ -433,7 +450,7 @@ function renderDone(){
   var trOk=items.filter(function(i){return i.tr==='ok'}).length;
   var trBad=items.filter(function(i){return ['erro','sem_fala','sem_audio','cancelada','pronta'].indexOf(i.tr)>=0}).length;
   var allCancel=items.every(function(i){return i.up==='cancelado'});
-  var d=j.dest,p=d?parentOf(d):null,where=d?esc(locName(d))+(p?' › '+esc(locName(p)):''):'';
+  var d=effDest(j);
   var h='';
   if(allCancel){
     h='<div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-top:36px">'+ic('x',GRAY,56)+'<div style="font-size:20px;font-weight:600">Envio cancelado</div><div class="mut" style="font-size:13px">Nada foi enviado. Os arquivos continuam no Mac.</div></div>';
@@ -443,8 +460,8 @@ function renderDone(){
       '<div style="font-size:20px;font-weight:600">Tudo no Drive!</div><div class="mut" style="font-size:13px;line-height:1.5">'+vtxt+(trOk?' e '+plural(trOk,'transcrição','transcrições')+' na pasta Transcrições':'')+'<br>'+esc(ctxName(d))+'</div></div>';
     h+='<div class="box scroll" style="padding:6px;flex-shrink:1">'+items.map(function(i){
       return '<div class="row" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06)"><span style="display:flex;align-items:center;gap:8px;min-width:0">'+ic(i.is_dir?'folder':'movie',BLUE,15)+'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.name)+'</span></span>'+
-      '<span style="display:flex;gap:12px;flex-shrink:0"><span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+(i.is_dir?'pasta':'vídeo')+'</span>'+(i.tr==='ok'?'<span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+'transcrição</span>':'')+'</span></div>'}).join('')+'</div>';
-    if(j.tr_dest===null&&items.some(function(i){return i.tr==='desligada'})&&S.transcribe)h+='<div class="mut" style="text-align:center">Transcrição desligada neste envio.</div>';
+      '<span style="display:flex;gap:12px;flex-shrink:0"><span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+(i.tr==='nao_se_aplica'?'arquivo':'vídeo')+'</span>'+(i.tr==='ok'?'<span class="tag" style="color:'+GREEN+'">'+ic('check',GREEN,13)+'transcrição</span>':'')+'</span></div>'}).join('')+'</div>';
+    if(items.some(function(i){return i.tr==='desligada'})&&S.transcribe)h+='<div class="mut" style="text-align:center">Transcrição desligada neste envio.</div>';
   }else{
     var t=upBad.length?(upBad.length===1?'Terminou, mas 1 vídeo não subiu':'Terminou, mas '+upBad.length+' vídeos não subiram'):(trBad===1?'Os vídeos subiram, mas 1 transcrição não saiu':'Os vídeos subiram, mas '+trBad+' transcrições não saíram');
     var sub=upBad.length?'“Tentar de novo” envia só o que falhou. O que já está no Drive não sobe de novo.':'Na revisão, o Revisor ouve sozinho esses vídeos, como sempre.';

@@ -5,8 +5,10 @@ Regras (pedido do JP, 23/11/2026):
 - O .transcricao.json (pequeno) sobe quando a transcrição fica pronta E o vídeo já subiu.
 - Se o editor fechar o app antes, o vídeo subiu do mesmo jeito; só falta a transcrição (o Revisor ouve
   sozinho, como sempre).
-- A transcrição vai para a pasta "Transcrições" AO LADO da pasta escolhida (irmã dela), fora da Saída,
-  para não ir para o servidor/NAS junto com os vídeos. Vale para qualquer pasta escolhida.
+- A transcrição vai para a pasta "Transcrições" AO LADO da pasta onde o vídeo fica (irmã dela), fora da
+  Saída, para não ir para o servidor/NAS junto com os vídeos. Vale para qualquer pasta escolhida.
+- Pasta arrastada (ex.: a "Saída" inteira): cada arquivo de dentro sobe para <destino>/<pasta>/…, e os
+  vídeos de dentro também são transcritos (Transcrições fica ao lado da pasta enviada).
 - Cada envio gera a transcrição de novo (vídeo corrigido = outra duração = transcrição nova).
 """
 from __future__ import annotations
@@ -52,6 +54,8 @@ class Item:
     name: str
     is_dir: bool
     size: int
+    sub: list = field(default_factory=list)      # pastas a partir do destino (ex.: ["Saída"] se veio numa pasta)
+    tr_dest: Loc | None = None                     # pasta "Transcrições" deste vídeo
     # envio do vídeo: fila | enviando | ok | erro | cancelado
     up: str = "fila"
     up_bytes: float = 0.0
@@ -73,7 +77,7 @@ class Item:
 
     def view(self) -> dict:
         return {k: getattr(self, k) for k in (
-            "id", "name", "is_dir", "size", "up", "up_bytes", "up_total", "up_speed", "up_eta", "up_err",
+            "id", "name", "is_dir", "size", "sub", "up", "up_bytes", "up_total", "up_speed", "up_eta", "up_err",
             "up_kind", "tr", "tr_frac", "tr_chunk", "tr_chunks", "tr_eta", "tr_err")}
 
 
@@ -90,17 +94,59 @@ def size_of(p: Path) -> int:
     return tot
 
 
+def _visible(p: Path, base: Path) -> bool:
+    return not any(part.startswith(".") for part in p.relative_to(base).parts)
+
+
 def make_items(paths: list[str], transcribe: bool) -> list[Item]:
-    items = []
-    for k, s in enumerate(paths):
-        p = Path(s)
-        it = Item(k, str(p), p.name, p.is_dir(), size_of(p))
-        if it.is_dir or not fala.is_video(p):
+    """Um item por arquivo. Uma pasta arrastada (ex.: "Saída") vira um item por arquivo de dentro, que sobe
+    para <destino>/<pasta>/…: assim os vídeos de dentro também são transcritos (pedido do JP, 26/11/2026)."""
+    items: list[Item] = []
+
+    def add(f: Path, sub: list):
+        it = Item(len(items), str(f), f.name, False, f.stat().st_size, list(sub))
+        if not fala.is_video(f):
             it.tr = "nao_se_aplica"
         elif not transcribe:
             it.tr = "desligada"
         items.append(it)
+
+    for s in paths:
+        p = Path(s)
+        if p.is_dir():
+            for f in sorted(p.rglob("*"), key=lambda x: str(x.relative_to(p)).lower()):
+                if f.is_file() and _visible(f, p):
+                    add(f, [p.name] + list(f.relative_to(p).parent.parts))
+        elif p.is_file():
+            add(p, [])
     return items
+
+
+def landing(dest: Loc, it: Item) -> Loc:
+    """Pasta do Drive onde o arquivo vai ficar."""
+    loc = dest
+    for part in it.sub:
+        loc = loc.child(part)
+    return loc
+
+
+def assign_transcription_dests(rc: Rclone, dest: Loc, items: list[Item]) -> str:
+    """Escolhe a pasta "Transcrições" de cada vídeo: ao lado da pasta onde o vídeo fica.
+    Devolve o motivo quando algum vídeo fica sem transcrição."""
+    cache: dict[str, tuple] = {}
+    why = ""
+    for it in items:
+        if it.tr != "fila":
+            continue
+        land = landing(dest, it)
+        key = repr(land.to_dict())
+        if key not in cache:
+            cache[key] = transcription_dest(rc, land)
+        it.tr_dest, w = cache[key]
+        if it.tr_dest is None:
+            it.tr = "desligada"
+            why = why or w
+    return why
 
 
 @dataclass
@@ -108,7 +154,6 @@ class Job:
     rc: Rclone
     items: list[Item]
     dest: Loc
-    tr_dest: Loc | None
     on_change: object = None                     # chamada (sem argumentos) quando algo muda
     transcriber: object = None                   # para testes: função(video, progress, cancel, holder) -> dict
     cancel_ev: threading.Event = field(default_factory=threading.Event)
@@ -133,12 +178,10 @@ class Job:
                     it.up, it.up_err, it.up_kind, it.up_bytes = "fila", "", "", 0.0
                 if it.tr in ("erro", "cancelada"):
                     it.tr, it.tr_err = ("pronta" if it.tr_file else "fila"), ""
-                if it.tr == "pronta" and self.tr_dest is None:
+                if it.tr == "pronta" and it.tr_dest is None:
                     it.tr = "erro"
-            if self.tr_dest is None:
-                for it in self.items:
-                    if it.tr == "fila":
-                        it.tr = "desligada"
+                if it.tr == "fila" and it.tr_dest is None:
+                    it.tr = "desligada"
             self.up_running = any(it.up == "fila" for it in self.items)
             self.tr_running = any(it.tr == "fila" for it in self.items)
         self.threads = []
@@ -210,7 +253,7 @@ class Job:
                         last[0] = time.time()
                         self._changed()
                 try:
-                    self.rc.copy(it.path, self.dest, it.name, progress=prog, proc_holder=self.procs)
+                    self.rc.copy(it.path, landing(self.dest, it), it.name, progress=prog, proc_holder=self.procs)
                 except DriveError as e:
                     with self.lock:
                         if self.cancel_ev.is_set():
@@ -255,7 +298,7 @@ class Job:
                 try:
                     fn = self.transcriber or fala.transcribe_video
                     data = fn(it.path, progress=prog, cancel=self.cancel_ev, proc_holder=self.procs)
-                    p = fala.write(self.work, it.name, data)
+                    p = fala.write(self.work / str(it.id), it.name, data)
                 except fala.Cancelled:
                     with self.lock:
                         it.tr = "cancelada"
@@ -294,7 +337,7 @@ class Job:
     def _maybe_send_tr(self, it: Item) -> None:
         """Sobe a transcrição quando ela está pronta e o vídeo já subiu (chamado pelos dois lados)."""
         with self.lock:
-            if not (it.tr == "pronta" and it.up == "ok" and it.tr_file and self.tr_dest is not None):
+            if not (it.tr == "pronta" and it.up == "ok" and it.tr_file and it.tr_dest is not None):
                 return
             if self.cancel_ev.is_set():
                 return
@@ -303,7 +346,7 @@ class Job:
 
         def send():
             try:
-                self.rc.copy(it.tr_file, self.tr_dest, Path(it.tr_file).name, proc_holder=self.procs)
+                self.rc.copy(it.tr_file, it.tr_dest, Path(it.tr_file).name, proc_holder=self.procs)
                 ok, err = True, ""
             except DriveError as e:
                 ok, err = False, str(e)
